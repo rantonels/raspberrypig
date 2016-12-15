@@ -87,8 +87,9 @@ s_x = [0,0]
 def sierpinski(screen):
     global reset,s_a,s_x
     if reset:
-        for i in range(3):
-            s_a[i] = (random.randint(0,size[0]-1), random.randint(0,size[1]-1))
+        s_a[0] = (random.randint(0,size[0]-1), random.randint(0,size[1]//2))
+        s_a[1] = (random.randint(0,size[0]//2), random.randint(size[1]//2, size[1]-1))
+        s_a[2] = (random.randint(size[0]//2,size[0]-1), random.randint(size[1]//2, size[1]-1))
 
         screen.fill(palette[1])
         s_x = list(s_a[random.randint(0,2)])
@@ -103,12 +104,14 @@ def sierpinski(screen):
         screen.set_at((int(s_x[0]),int(s_x[1])) , palette[2])
 
 
-l_a = np.array(size)
+l_a = np.zeros(( size[0]//2,size[1]//2))
+
 def life(screen):
     global reset,l_a,frame
     if reset:
-        l_a = np.random.randint(2,size = size)
+        l_a = np.random.randint(2,size = l_a.shape).astype(int)
         reset = False
+
 
     if frame % 3 == 0:
 
@@ -124,7 +127,10 @@ def life(screen):
 
         #    pixels = np.outer( l_a, np.array(palette[3]))
 
-        pixels = np.einsum(" ij,k",l_a,np.array(palette[3]))
+        kron = np.kron(l_a, np.ones((2,2)).astype(int) )
+        pixels =  np.einsum(" ij,k",kron,np.array(palette[2]) ) \
+                + np.einsum(" ij,k",np.logical_not(kron),np.array(palette[3]) )
+
 
 
         pg.surfarray.blit_array(screen,pixels)
@@ -133,7 +139,7 @@ def life(screen):
 reset = True
 panel = 2
 
-period = 500
+period = 150
 
 while not flag_quit:
     for event in pg.event.get():
@@ -152,6 +158,6 @@ while not flag_quit:
         life(screen)
 
     pg.display.flip()
-    fps_clock.tick(60)
+    fps_clock.tick(30)
 
     frame += 1
