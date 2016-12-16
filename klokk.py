@@ -3,6 +3,16 @@ import datetime
 import random
 import numpy as np
 
+import argparse
+
+from colormath.color_objects import LabColor, sRGBColor
+from colormath.color_conversions import convert_color
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-F', dest="fullscreen", action="store_true", default=False)
+args = parser.parse_args()
+
+
 weekday_names = [
         "Lun",
         "Mar",
@@ -34,7 +44,10 @@ size = 480,320
 szarr = np.array(size)
 
 pg.init()
-screen = pg.display.set_mode(size)
+if args.fullscreen:
+    screen = pg.display.set_mode(size,pg.FULLSCREEN)
+else:
+    screen = pg.display.set_mode(size)
 
 
 fontfn = "res/coolvetica.ttf"
@@ -219,12 +232,86 @@ def thermometer(screen):
     screen.blit(label,(size[0]//2-50, size[1]//2-80))
 
 
+r_N = 20
+r_W = size[0] // r_N
+r_H = 20
+r_period = 15
+r_s1 = 0
+r_s2 = 0
+r_frame = 0
+
+def smoothstep(x):
+    return x*x*(3 - 2*x)
+
+def sorter(screen):
+    global reset,gradient,r_s1,r_s2,frame,swaps,r_frame,bg
+    if reset:
+        c1,c2,bg = random.sample( [red,blue,black,white], 3)
+        rgb1 = sRGBColor(c1[0],c1[1],c1[2])
+        rgb2 = sRGBColor(c2[0],c2[1],c2[2])
+        lab1 = np.array(convert_color(rgb1,LabColor).get_value_tuple())
+        lab2 = np.array(convert_color(rgb2,LabColor).get_value_tuple())
+
+        gradient = []
+        for i in range(r_N):
+            t = i /float(r_N-1)
+            
+            blent = t*lab1 + (1-t)*lab2
+
+            rgblent = convert_color(LabColor(blent[0],blent[1],blent[2]),sRGBColor).get_value_tuple()
+            gradient.append((i,rgblent))
+
+        swaps = []
+        for i in range(15):
+            while True:
+                a = np.random.randint(0,len(gradient))
+                b = np.random.randint(0,len(gradient))
+                if a!= b:
+                    break
+            swaps.append((a,b))
+
+        for a,b in swaps:
+            gradient[a],gradient[b] = gradient[b],gradient[a]
+
+        swaps = list(reversed(swaps))
+
+        r_frame = 0
+
+        reset = False
+
+    screen.fill(bg)
+    progg = (r_frame%r_period) / float(r_period)
+    for i in range(r_N):
+        if not (i in [r_s1,r_s2]):
+            pg.draw.rect(screen,gradient[i][1],(i*r_W, size[1]//2 - r_H, r_W , 2*r_H) )
+
+    angle = (smoothstep(progg))*np.pi
+
+    X = r_W * (r_s1 + r_s2)/2.0
+    R = r_W * abs(r_s1 - r_s2)/2.0
+    Y = size[1]//2 - r_H
+
+    pg.draw.rect(screen, gradient[r_s1][1], ( X - R*np.cos(angle), Y - R*np.sin(angle), r_W, 2*r_H) )
+    pg.draw.rect(screen, gradient[r_s2][1], ( X + R*np.cos(angle), Y + R*np.sin(angle), r_W, 2*r_H) )
+
+    
+    if r_frame%r_period == 0:
+        gradient[r_s1],gradient[r_s2] = gradient[r_s2], gradient[r_s1]
+        iteration = r_frame // r_period
+
+        if (iteration >= len(swaps)):
+            r_s1,r_s2 = 0,0
+        else:
+            r_s1,r_s2 = swaps[iteration]
+
+    r_frame += 1
+
 
 reset = True
-panel = 3
-panels = [clock,wall,life,thermometer]
+panel = 4
+panels = [clock,wall,life,thermometer,sorter]
 
-period = 150
+period = 250
 
 while not flag_quit:
     for event in pg.event.get():
